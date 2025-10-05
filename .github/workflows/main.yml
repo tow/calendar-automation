@@ -1,0 +1,78 @@
+name: Calendar Sync
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # Every 15 minutes
+  workflow_dispatch:  # Manual trigger
+
+# Prevent concurrent runs - critical for avoiding race conditions
+concurrency:
+  group: calendar-sync
+  cancel-in-progress: false  # Wait for current run to finish
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10  # Kill if hanging
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+        
+    - name: Install dependencies
+      run: |
+        pip install caldav icalendar
+        
+    - name: Run sync script
+      env:
+        FASTMAIL_URL: ${{ secrets.FASTMAIL_URL }}
+        FASTMAIL_USER: ${{ secrets.FASTMAIL_USER }}
+        FASTMAIL_PASS: ${{ secrets.FASTMAIL_PASS }}
+        WORK_CAL_NAME: ${{ secrets.WORK_CAL_NAME }}
+        FAMILY_CAL_NAME: ${{ secrets.FAMILY_CAL_NAME }}
+      run: |
+        set +x  # Don't echo commands (hide credentials)
+        python sync_calendar.py
+      
+    - name: Commit state atomically
+      run: |
+        git config user.name "Calendar Sync Bot"
+        git config user.email "sync@localhost"
+        
+        # Pull latest first to avoid conflicts
+        git pull --rebase origin main || true
+        
+        # Only commit if state file changed
+        if ! git diff --quiet calendar_sync_state.json; then
+          git add calendar_sync_state.json
+          git commit -m "Update sync state [skip ci]" || true
+          
+          # Retry push up to 3 times if conflict
+          for i in {1..3}; do
+            if git push; then
+              echo "✓ State committed successfully"
+              break
+            else
+              echo "Push failed, attempt $i/3"
+              git pull --rebase origin main
+              sleep 2
+            fi
+          done
+        else
+          echo "No state changes to commit"
+        fi
