@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import shutil
+import argparse
 from datetime import datetime, timedelta
 
 # Configuration from environment
@@ -13,6 +14,7 @@ FASTMAIL_PASS = os.getenv('FASTMAIL_PASS')
 WORK_CAL_NAME = os.getenv('WORK_CAL_NAME')
 FAMILY_CAL_NAME = os.getenv('FAMILY_CAL_NAME')
 STATE_FILE = "calendar_sync_state.json"
+STATELESS_MODE = False  # Set via command-line flag
 
 def load_state():
     """Load sync state with corruption protection"""
@@ -131,11 +133,161 @@ class CalendarSyncTransaction:
         
         print(f"✓ Completed {len(self.completed)} operations successfully")
 
-def main():
+def get_managed_family_events(family_cal):
+    """
+    Get all events in family calendar that we manage (UID ends with '-family').
+    Uses CalDAV extended query with ends-with match-type for efficiency.
+
+    Returns dict mapping family UID to work UID.
+    """
+    import requests
+    from requests.auth import HTTPBasicAuth
+
+    query_xml = """<?xml version="1.0" encoding="utf-8" ?>
+<C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav">
+  <D:prop xmlns:D="DAV:">
+    <D:getetag/>
+    <C:calendar-data/>
+  </D:prop>
+  <C:filter>
+    <C:comp-filter name="VCALENDAR">
+      <C:comp-filter name="VEVENT">
+        <C:prop-filter name="UID">
+          <C:text-match match-type="ends-with">-family</C:text-match>
+        </C:prop-filter>
+      </C:comp-filter>
+    </C:comp-filter>
+  </C:filter>
+</C:calendar-query>"""
+
+    family_uid_to_work_uid = {}
+
+    try:
+        response = requests.request(
+            'REPORT',
+            str(family_cal.url),
+            data=query_xml,
+            headers={'Content-Type': 'application/xml; charset=utf-8'},
+            auth=HTTPBasicAuth(FASTMAIL_USER, FASTMAIL_PASS)
+        )
+
+        if response.status_code == 207:  # Multi-Status
+            # Parse response to extract UIDs
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(response.content)
+
+            # Find all calendar-data elements
+            for calendar_data in root.iter('{urn:ietf:params:xml:ns:caldav}calendar-data'):
+                if calendar_data.text:
+                    try:
+                        cal = Calendar.from_ical(calendar_data.text)
+                        for component in cal.walk('VEVENT'):
+                            family_uid = str(component.get('UID'))
+                            if family_uid.endswith('-family'):
+                                work_uid = family_uid[:-7]  # Remove '-family' suffix
+                                family_uid_to_work_uid[family_uid] = work_uid
+                    except:
+                        continue
+    except Exception as e:
+        print(f"⚠ Warning: Could not query family calendar for managed events: {e}")
+        print(f"  Falling back to fetching all events...")
+        # Fallback: fetch all events
+        try:
+            for event in family_cal.objects():
+                if event.data:
+                    cal = Calendar.from_ical(event.data)
+                    for component in cal.walk('VEVENT'):
+                        family_uid = str(component.get('UID'))
+                        if family_uid.endswith('-family'):
+                            work_uid = family_uid[:-7]
+                            family_uid_to_work_uid[family_uid] = work_uid
+        except Exception as e2:
+            print(f"⚠ Error in fallback: {e2}")
+
+    return family_uid_to_work_uid
+
+def sync_stateless(work_cal, family_cal):
+    """
+    Stateless sync: no state file, no sync tokens.
+    Determines what to do by comparing full state of both calendars.
+    """
+    print("Running in STATELESS mode")
+
+    # Step 1: Get all busy events from work calendar
+    work_busy_events = {}  # work_uid -> event_data
+
+    print("Fetching all events from work calendar...")
+    for event in work_cal.objects(load_objects=True):
+        if event.data:
+            try:
+                cal = Calendar.from_ical(event.data)
+                for component in cal.walk('VEVENT'):
+                    work_uid = str(component.get('UID'))
+                    transp = component.get('TRANSP', 'OPAQUE')
+
+                    if transp == 'OPAQUE':
+                        work_busy_events[work_uid] = component
+            except Exception as e:
+                print(f"⚠ Error parsing work event: {e}")
+                continue
+
+    print(f"Found {len(work_busy_events)} busy events in work calendar")
+
+    # Step 2: Get all managed events from family calendar (ends with '-family')
+    print("Fetching managed events from family calendar...")
+    family_managed = get_managed_family_events(family_cal)
+    print(f"Found {len(family_managed)} managed events in family calendar")
+
+    # Step 3: Determine operations
+    transaction = CalendarSyncTransaction(work_cal, family_cal, {"event_map": {}})
+
+    # Create/Update: for each busy work event
+    for work_uid, component in work_busy_events.items():
+        family_uid = f"{work_uid}-family"
+
+        try:
+            dtstart = component['DTSTART']
+            dtend = get_event_end(component)
+
+            family_event_data = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Busy Sync//EN
+BEGIN:VEVENT
+UID:{family_uid}
+DTSTART:{format_datetime_for_ical(dtstart)}
+DTEND:{format_datetime_for_ical(dtend)}
+SUMMARY:Busy
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR"""
+
+            if family_uid in family_managed:
+                # Already exists - will be updated (or same if no changes)
+                transaction.plan_create(work_uid, family_event_data)
+                print(f"Update: {work_uid[:8]}...")
+            else:
+                # New event
+                transaction.plan_create(work_uid, family_event_data)
+                print(f"Create: {work_uid[:8]}...")
+        except Exception as e:
+            print(f"⚠ Skipping {work_uid}: {e}")
+            continue
+
+    # Delete: family events that no longer exist in work calendar
+    for family_uid, work_uid in family_managed.items():
+        if work_uid not in work_busy_events:
+            transaction.plan_delete(work_uid, family_uid)
+            print(f"Delete: {work_uid[:8]}... (no longer busy in work calendar)")
+
+    # Step 4: Execute
+    print(f"\nExecuting {len(transaction.operations)} operations...")
+    transaction.execute()
+
+    print(f"✓ Stateless sync complete")
+
+def main(stateless=False):
     print(f"=== Calendar Sync Started: {datetime.now().isoformat()} ===")
-    
-    state = load_state()
-    
+
     try:
         # Connect to Fastmail
         client = caldav.DAVClient(
@@ -143,14 +295,23 @@ def main():
             username=FASTMAIL_USER,
             password=FASTMAIL_PASS
         )
-        
+
         principal = client.principal()
         work_cal = principal.calendar(name=WORK_CAL_NAME)
         family_cal = principal.calendar(name=FAMILY_CAL_NAME)
-        
+
+        # Choose sync mode
+        if stateless:
+            sync_stateless(work_cal, family_cal)
+            print(f"=== Calendar Sync Finished: {datetime.now().isoformat()} ===")
+            return
+
+        # Stateful mode (original implementation)
+        state = load_state()
+
         # Get changes since last sync
         synced_events = work_cal.objects(
-            sync_token=state["sync_token"], 
+            sync_token=state["sync_token"],
             load_objects=True
         )
         
@@ -253,4 +414,14 @@ END:VCALENDAR"""
         exit(1)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description='Sync busy events from work calendar to family calendar'
+    )
+    parser.add_argument(
+        '--stateless',
+        action='store_true',
+        help='Run in stateless mode (no state file, full sync each time)'
+    )
+    args = parser.parse_args()
+
+    main(stateless=args.stateless)

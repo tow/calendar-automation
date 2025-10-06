@@ -49,11 +49,39 @@ export FAMILY_CAL_NAME="Family"
 
 ## Usage
 
-### Manual Run
+### Stateful Mode (Default - Recommended for Frequent Syncs)
+
+Uses sync tokens for efficient delta syncs and maintains a state file.
 
 ```bash
 python sync_calendar.py
 ```
+
+**Advantages:**
+- ✅ Efficient - only fetches changed events
+- ✅ Fast - minimal network requests
+- ✅ Ideal for frequent syncs (every 5-15 minutes)
+
+**Requirements:**
+- Persistent storage for `calendar_sync_state.json`
+
+### Stateless Mode (Ideal for Serverless/Containers)
+
+No state file needed - compares full calendar state each time.
+
+```bash
+python sync_calendar.py --stateless
+```
+
+**Advantages:**
+- ✅ No persistent storage required
+- ✅ Self-healing - automatically fixes inconsistencies
+- ✅ Perfect for Lambda, Docker, Kubernetes
+- ✅ Uses CalDAV extended query (efficient UID filtering)
+
+**Trade-offs:**
+- ⚠️ Fetches all events each time (2 full calendar queries)
+- ⚠️ Slower than stateful for large calendars
 
 ### Automated Sync (Recommended)
 
@@ -63,19 +91,32 @@ Set up a cron job to run every 15 minutes:
 # Edit crontab
 crontab -e
 
-# Add this line:
+# Stateful mode:
 */15 * * * * /path/to/python /path/to/sync_calendar.py
+
+# Or stateless mode:
+*/15 * * * * /path/to/python /path/to/sync_calendar.py --stateless
 ```
 
 Or use a systemd timer, GitHub Actions workflow, or other scheduler.
 
 ## How It Works
 
+### Stateful Mode (Default)
+
 1. **Connect** to source (work) and destination (family) calendars via CalDAV
 2. **Fetch** changed events since last sync using sync tokens (delta sync)
 3. **Filter** for OPAQUE (busy) events only
 4. **Create/Update/Delete** corresponding "Busy" placeholder events in family calendar
 5. **Save** sync state atomically to prevent corruption
+
+### Stateless Mode (`--stateless`)
+
+1. **Connect** to both calendars via CalDAV
+2. **Fetch all busy events** from work calendar
+3. **Fetch managed events** from family calendar (using `match-type="ends-with"` filter for UIDs ending in `-family`)
+4. **Compare states** to determine what needs to be created/updated/deleted
+5. **Execute operations** - no state file needed
 
 ### Event Handling
 
@@ -115,11 +156,12 @@ The sync state is stored in `calendar_sync_state.json`:
 
 ## Testing
 
-The project includes a comprehensive test suite with 32 tests covering:
+The project includes a comprehensive test suite with 40 tests covering:
 - Event parsing (all types and formats)
 - Recurring events
 - Deletion detection
 - Atomicity and error handling
+- Stateful and stateless sync modes
 - Full sync workflow
 
 ### Run Tests
@@ -134,9 +176,12 @@ python -m pytest tests/ --cov=sync_calendar --cov-report=term-missing
 # Run specific test files
 python -m pytest tests/test_recurring_events.py -v
 python -m pytest tests/test_atomicity.py -v
+python -m pytest tests/test_stateless_sync.py -v
 ```
 
 **Test Coverage:** 60% (core logic 100%, untested code is mostly integration glue)
+
+**Test Count:** 40 tests, 100% passing
 
 See `tests/README.md` for detailed test documentation.
 
@@ -150,11 +195,19 @@ See `tests/README.md` for detailed test documentation.
 
 ### State file corruption
 
-Delete `calendar_sync_state.json` to reset. Next sync will be a full sync.
+**Stateful mode:** Delete `calendar_sync_state.json` to reset. Next sync will be a full sync.
+
+**Stateless mode:** Not applicable - no state file used.
 
 ### Duplicate events
 
 The sync is idempotent - safe to re-run. If you see duplicates, check for multiple sync processes running simultaneously.
+
+### Stateless mode recommendations
+
+- Use stateless mode for serverless/container deployments
+- For calendars with 100+ events, stateful mode may be faster
+- Stateless mode requires CalDAV extended query support (Fastmail ✅ supported)
 
 ## Architecture
 

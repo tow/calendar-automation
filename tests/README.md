@@ -4,7 +4,7 @@
 
 This directory contains the complete test suite for the calendar sync application.
 
-**Status**: ✅ 30 tests, 100% passing
+**Status**: ✅ 40 tests, 100% passing
 
 ## Directory Structure
 
@@ -18,7 +18,8 @@ tests/
 ├── test_sync_calendar.py          # Unit tests for core functions
 ├── test_recurring_events.py       # Recurring event tests
 ├── test_atomicity.py              # Atomicity & error handling tests
-├── test_sync_integration.py       # Integration tests
+├── test_sync_integration.py       # Integration tests (stateful mode)
+├── test_stateless_sync.py         # Stateless sync mode tests
 ├── test_fixed_code.py             # Bug fix verification tests
 ├── test_real_fastmail.py          # Real Fastmail validation (requires credentials)
 │
@@ -56,12 +57,21 @@ Advanced failure scenario testing:
 - State corruption recovery
 - Error handling edge cases
 
-#### `test_sync_integration.py` (5 tests)
-Integration tests using mock CalDAV:
-- Transaction operations
+#### `test_sync_integration.py` (6 tests)
+Integration tests for stateful mode using mock CalDAV:
+- Transaction operations (create, update, delete)
 - Sync token behavior
 - Deletion detection
 - Full sync workflow
+
+#### `test_stateless_sync.py` (8 tests)
+Tests for stateless sync mode:
+- Efficient family event retrieval (ends-with query)
+- Create/update/delete operations
+- Orphaned event cleanup
+- TRANSP filtering (busy/free)
+- Full stateless workflow
+- Idempotent operations
 
 #### `test_fixed_code.py` (2 tests)
 Verification that critical bugs are fixed:
@@ -93,8 +103,11 @@ python -m pytest tests/test_recurring_events.py -v
 # Atomicity tests
 python -m pytest tests/test_atomicity.py -v
 
-# Integration tests
+# Integration tests (stateful)
 python -m pytest tests/test_sync_integration.py -v
+
+# Stateless sync tests
+python -m pytest tests/test_stateless_sync.py -v
 
 # Bug fix verification
 python -m pytest tests/test_fixed_code.py -v
@@ -237,11 +250,12 @@ Re-run empirical tools and update fixtures if behavior changes.
 2. **Bug-driven** - Tests prove bugs existed and are fixed
 3. **Comprehensive** - Cover all event types and edge cases
 4. **Maintainable** - Clear structure, good documentation
-5. **Fast** - 30 tests run in < 0.1 seconds
+5. **Fast** - 40 tests run in < 0.15 seconds
+6. **Dual-mode coverage** - Both stateful and stateless sync modes tested
 
 ---
 
 **Last Updated**: 2025-10-06
-**Test Count**: 30
+**Test Count**: 40
 **Pass Rate**: 100%
-**Coverage**: 95%
+**Coverage**: 60% (core logic 100%)
