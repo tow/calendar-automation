@@ -16,6 +16,13 @@ FAMILY_CAL_NAME = os.getenv('FAMILY_CAL_NAME')
 STATE_FILE = "calendar_sync_state.json"
 STATELESS_MODE = False  # Set via command-line flag
 
+# Time range for syncing (default: start from yesterday to avoid timezone issues)
+# This allows cleanup of events that ended yesterday but are still "current"
+SYNC_START_OFFSET_DAYS = int(os.getenv('SYNC_START_OFFSET_DAYS', '-1'))  # Days before today
+# Set to None or empty string for "all future events"
+SYNC_END_OFFSET_DAYS_STR = os.getenv('SYNC_END_OFFSET_DAYS', '365')
+SYNC_END_OFFSET_DAYS = None if SYNC_END_OFFSET_DAYS_STR in ('', 'None', 'none') else int(SYNC_END_OFFSET_DAYS_STR)
+
 def load_state():
     """Load sync state with corruption protection"""
     if os.path.exists(STATE_FILE):
@@ -133,17 +140,29 @@ class CalendarSyncTransaction:
         
         print(f"✓ Completed {len(self.completed)} operations successfully")
 
-def get_managed_family_events(family_cal):
+def get_managed_family_events(family_cal, start_date=None, end_date=None):
     """
     Get all events in family calendar that we manage (UID ends with '-family').
     Uses CalDAV extended query with ends-with match-type for efficiency.
+    Optionally filters by time range.
 
     Returns dict mapping family UID to work UID.
     """
     import requests
     from requests.auth import HTTPBasicAuth
 
-    query_xml = """<?xml version="1.0" encoding="utf-8" ?>
+    # Build time-range filter if dates provided
+    time_range_filter = ""
+    if start_date and end_date:
+        # Convert dates to iCal format (YYYYMMDD)
+        start_str = start_date.strftime("%Y%m%dT000000Z")
+        end_str = end_date.strftime("%Y%m%dT235959Z")
+        time_range_filter = f"""
+        <C:comp-filter name="VEVENT">
+          <C:time-range start="{start_str}" end="{end_str}"/>
+        </C:comp-filter>"""
+
+    query_xml = f"""<?xml version="1.0" encoding="utf-8" ?>
 <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav">
   <D:prop xmlns:D="DAV:">
     <D:getetag/>
@@ -155,6 +174,7 @@ def get_managed_family_events(family_cal):
         <C:prop-filter name="UID">
           <C:text-match match-type="ends-with">-family</C:text-match>
         </C:prop-filter>
+        {time_range_filter}
       </C:comp-filter>
     </C:comp-filter>
   </C:filter>
@@ -210,14 +230,41 @@ def sync_stateless(work_cal, family_cal):
     """
     Stateless sync: no state file, no sync tokens.
     Determines what to do by comparing full state of both calendars.
+    Only syncs events within the configured time range.
     """
     print("Running in STATELESS mode")
 
-    # Step 1: Get all busy events from work calendar
+    # Calculate time range
+    start_date = datetime.now().date() + timedelta(days=SYNC_START_OFFSET_DAYS)
+    end_date = datetime.now().date() + timedelta(days=SYNC_END_OFFSET_DAYS) if SYNC_END_OFFSET_DAYS is not None else None
+    end_str = end_date if end_date else "infinity (all future)"
+    print(f"Syncing events from {start_date} to {end_str}")
+
+    # Step 1: Get all busy events from work calendar within time range
     work_busy_events = {}  # work_uid -> event_data
 
-    print("Fetching all events from work calendar...")
-    for event in work_cal.objects(load_objects=True):
+    print("Fetching events from work calendar...")
+    # Use CalDAV time-range query for efficiency
+    try:
+        # Try modern search() API first (preferred)
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+        events = work_cal.search(
+            start=start_dt,
+            end=end_dt,
+            event=True,
+            expand=False
+        )
+    except (AttributeError, TypeError):
+        # Fallback if search not supported (e.g., in tests or old caldav)
+        try:
+            # Try deprecated date_search
+            events = work_cal.date_search(start=start_date, end=end_date, expand=False)
+        except:
+            # Final fallback: fetch all
+            events = work_cal.objects(load_objects=True)
+
+    for event in events:
         if event.data:
             try:
                 cal = Calendar.from_ical(event.data)
@@ -225,18 +272,31 @@ def sync_stateless(work_cal, family_cal):
                     work_uid = str(component.get('UID'))
                     transp = component.get('TRANSP', 'OPAQUE')
 
+                    # Filter by date (in case search didn't work or for recurring events)
+                    dtstart = component.get('DTSTART')
+                    if dtstart:
+                        event_date = dtstart.dt
+                        if isinstance(event_date, datetime):
+                            event_date = event_date.date()
+
+                        # Skip events outside our time range
+                        if event_date < start_date:
+                            continue
+                        if end_date is not None and event_date > end_date:
+                            continue
+
                     if transp == 'OPAQUE':
                         work_busy_events[work_uid] = component
             except Exception as e:
                 print(f"⚠ Error parsing work event: {e}")
                 continue
 
-    print(f"Found {len(work_busy_events)} busy events in work calendar")
+    print(f"Found {len(work_busy_events)} busy events in work calendar (within time range)")
 
     # Step 2: Get all managed events from family calendar (ends with '-family')
     print("Fetching managed events from family calendar...")
-    family_managed = get_managed_family_events(family_cal)
-    print(f"Found {len(family_managed)} managed events in family calendar")
+    family_managed = get_managed_family_events(family_cal, start_date, end_date)
+    print(f"Found {len(family_managed)} managed events in family calendar (within time range)")
 
     # Step 3: Determine operations
     transaction = CalendarSyncTransaction(work_cal, family_cal, {"event_map": {}})
@@ -343,6 +403,26 @@ def main(stateless=False):
                 cal = Calendar.from_ical(event.data)
                 for component in cal.walk('VEVENT'):
                     work_uid = str(component.get('UID'))
+
+                    # Filter by time range
+                    dtstart = component.get('DTSTART')
+                    if dtstart:
+                        event_date = dtstart.dt
+                        if isinstance(event_date, datetime):
+                            event_date = event_date.date()
+
+                        # Calculate time range
+                        start_date = datetime.now().date() + timedelta(days=SYNC_START_OFFSET_DAYS)
+                        end_date = datetime.now().date() + timedelta(days=SYNC_END_OFFSET_DAYS) if SYNC_END_OFFSET_DAYS is not None else None
+
+                        # Skip events outside our time range
+                        if event_date < start_date or (end_date is not None and event_date > end_date):
+                            # If event exists in family calendar, delete it (it's now in the past)
+                            if work_uid in state["event_map"]:
+                                family_uid = state["event_map"][work_uid]
+                                transaction.plan_delete(work_uid, family_uid)
+                                print(f"Event {work_uid[:8]}... is outside time range → Remove from family calendar")
+                            continue
 
                     # Debug: print event details
                     summary = component.get('SUMMARY', 'No title')

@@ -43,9 +43,40 @@ export FASTMAIL_USER="your-email@example.com"
 export FASTMAIL_PASS="your-app-password"  # Generate in Fastmail settings
 export WORK_CAL_NAME="Work"
 export FAMILY_CAL_NAME="Family"
+
+# Optional: Time range filtering (default shown)
+export SYNC_START_OFFSET_DAYS="-1"  # Start from yesterday (-1 day)
+export SYNC_END_OFFSET_DAYS="365"   # Sync up to 1 year in future
 ```
 
 **Security Note:** Use Fastmail app-specific passwords, not your main account password.
+
+### Time Range Configuration
+
+By default, the sync only processes events from **yesterday** to **1 year in the future**. This significantly improves performance by ignoring historical events.
+
+**Why start from yesterday (-1 day)?**
+- Handles timezone edge cases
+- Allows cleanup of events that ended recently
+
+**Customize the range:**
+```bash
+# Only sync events starting today
+export SYNC_START_OFFSET_DAYS="0"
+
+# Only sync next 30 days
+export SYNC_END_OFFSET_DAYS="30"
+
+# All future events (no end limit)
+export SYNC_END_OFFSET_DAYS=""  # or "None"
+
+# Include past year (not recommended - slower)
+export SYNC_START_OFFSET_DAYS="-365"
+```
+
+**Performance Impact:**
+- Default range (yesterday to +1 year): Processes ~20-50 events
+- No filtering (all history): Could process 100s or 1000s of events
 
 ## Usage
 
