@@ -1,0 +1,303 @@
+{
+  "test_name": "Initial sync (sync_token=None)",
+  "old_sync_token": null,
+  "new_sync_token": "data:,1759734674-822885",
+  "event_count": 10,
+  "events": [
+    {
+      "raw_ical": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\nSUMMARY:Basic Timed (OPAQUE)\nDTSTART:20250107T100000Z\nDTEND:20250107T110000Z\nDTSTAMP:20250106T120000Z\nUID:test-basic-timed-opaque\nTRANSP:OPAQUE\nEND:VEVENT\nEND:VCALENDAR\n",
+      "components": [
+        {
+          "type": "VEVENT",
+          "uid": "test-basic-timed-opaque",
+          "summary": "Basic Timed (OPAQUE)",
+          "has_dtstart": true,
+          "has_dtend": true,
+          "has_duration": false,
+          "has_transp": true,
+          "transp_value": "OPAQUE",
+          "has_rrule": false,
+          "has_recurrence_id": false,
+          "properties": {
+            "DTSTART": {
+              "value": "b'20250107T100000Z'",
+              "params": {},
+              "dt_type": "datetime"
+            },
+            "DTEND": {
+              "value": "b'20250107T110000Z'",
+              "params": {},
+              "dt_type": "datetime"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "raw_ical": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\nSUMMARY:Basic Timed (TRANSPARENT)\nDTSTART:20250107T120000Z\nDTEND:20250107T130000Z\nDTSTAMP:20250106T120000Z\nUID:test-basic-timed-transparent\nTRANSP:TRANSPARENT\nEND:VEVENT\nEND:VCALENDAR\n",
+      "components": [
+        {
+          "type": "VEVENT",
+          "uid": "test-basic-timed-transparent",
+          "summary": "Basic Timed (TRANSPARENT)",
+          "has_dtstart": true,
+          "has_dtend": true,
+          "has_duration": false,
+          "has_transp": true,
+          "transp_value": "TRANSPARENT",
+          "has_rrule": false,
+          "has_recurrence_id": false,
+          "properties": {
+            "DTSTART": {
+              "value": "b'20250107T120000Z'",
+              "params": {},
+              "dt_type": "datetime"
+            },
+            "DTEND": {
+              "value": "b'20250107T130000Z'",
+              "params": {},
+              "dt_type": "datetime"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "raw_ical": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\nSUMMARY:No TRANSP Property\nDTSTART:20250107T140000Z\nDTEND:20250107T150000Z\nDTSTAMP:20250106T120000Z\nUID:test-no-transp\nEND:VEVENT\nEND:VCALENDAR\n",
+      "components": [
+        {
+          "type": "VEVENT",
+          "uid": "test-no-transp",
+          "summary": "No TRANSP Property",
+          "has_dtstart": true,
+          "has_dtend": true,
+          "has_duration": false,
+          "has_transp": false,
+          "transp_value": "NOT SET",
+          "has_rrule": false,
+          "has_recurrence_id": false,
+          "properties": {
+            "DTSTART": {
+              "value": "b'20250107T140000Z'",
+              "params": {},
+              "dt_type": "datetime"
+            },
+            "DTEND": {
+              "value": "b'20250107T150000Z'",
+              "params": {},
+              "dt_type": "datetime"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "raw_ical": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\nSUMMARY:Event with DURATION\nDTSTART:20250107T160000Z\nDURATION:PT1H30M\nDTSTAMP:20250106T120000Z\nUID:test-duration\nTRANSP:OPAQUE\nEND:VEVENT\nEND:VCALENDAR\n",
+      "components": [
+        {
+          "type": "VEVENT",
+          "uid": "test-duration",
+          "summary": "Event with DURATION",
+          "has_dtstart": true,
+          "has_dtend": false,
+          "has_duration": true,
+          "has_transp": true,
+          "transp_value": "OPAQUE",
+          "has_rrule": false,
+          "has_recurrence_id": false,
+          "properties": {
+            "DTSTART": {
+              "value": "b'20250107T160000Z'",
+              "params": {},
+              "dt_type": "datetime"
+            },
+            "DURATION": {
+              "value": "b'PT1H30M'"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "raw_ical": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\nSUMMARY:Point Event\nDTSTART:20250107T180000Z\nDTSTAMP:20250106T120000Z\nUID:test-point-event\nTRANSP:OPAQUE\nEND:VEVENT\nEND:VCALENDAR\n",
+      "components": [
+        {
+          "type": "VEVENT",
+          "uid": "test-point-event",
+          "summary": "Point Event",
+          "has_dtstart": true,
+          "has_dtend": false,
+          "has_duration": false,
+          "has_transp": true,
+          "transp_value": "OPAQUE",
+          "has_rrule": false,
+          "has_recurrence_id": false,
+          "properties": {
+            "DTSTART": {
+              "value": "b'20250107T180000Z'",
+              "params": {},
+              "dt_type": "datetime"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "raw_ical": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\nSUMMARY:All-Day Event\nDTSTART;VALUE=DATE:20250108\nDTEND;VALUE=DATE:20250109\nDTSTAMP:20250106T120000Z\nUID:test-allday\nTRANSP:OPAQUE\nEND:VEVENT\nEND:VCALENDAR\n",
+      "components": [
+        {
+          "type": "VEVENT",
+          "uid": "test-allday",
+          "summary": "All-Day Event",
+          "has_dtstart": true,
+          "has_dtend": true,
+          "has_duration": false,
+          "has_transp": true,
+          "transp_value": "OPAQUE",
+          "has_rrule": false,
+          "has_recurrence_id": false,
+          "properties": {
+            "DTSTART": {
+              "value": "b'20250108'",
+              "params": {
+                "VALUE": "DATE"
+              },
+              "dt_type": "date"
+            },
+            "DTEND": {
+              "value": "b'20250109'",
+              "params": {
+                "VALUE": "DATE"
+              },
+              "dt_type": "date"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "raw_ical": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\nSUMMARY:Multi-Day All-Day\nDTSTART;VALUE=DATE:20250109\nDTEND;VALUE=DATE:20250112\nDTSTAMP:20250106T120000Z\nUID:test-multiday-allday\nTRANSP:OPAQUE\nEND:VEVENT\nEND:VCALENDAR\n",
+      "components": [
+        {
+          "type": "VEVENT",
+          "uid": "test-multiday-allday",
+          "summary": "Multi-Day All-Day",
+          "has_dtstart": true,
+          "has_dtend": true,
+          "has_duration": false,
+          "has_transp": true,
+          "transp_value": "OPAQUE",
+          "has_rrule": false,
+          "has_recurrence_id": false,
+          "properties": {
+            "DTSTART": {
+              "value": "b'20250109'",
+              "params": {
+                "VALUE": "DATE"
+              },
+              "dt_type": "date"
+            },
+            "DTEND": {
+              "value": "b'20250112'",
+              "params": {
+                "VALUE": "DATE"
+              },
+              "dt_type": "date"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "raw_ical": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VTIMEZONE\nTZID:America/New_York\nBEGIN:STANDARD\nDTSTART:20241103T020000\nRRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\nTZOFFSETFROM:-0400\nTZOFFSETTO:-0500\nEND:STANDARD\nBEGIN:DAYLIGHT\nDTSTART:20250309T020000\nRRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU\nTZOFFSETFROM:-0500\nTZOFFSETTO:-0400\nEND:DAYLIGHT\nEND:VTIMEZONE\nBEGIN:VEVENT\nSUMMARY:Event in EST\nDTSTART;TZID=America/New_York:20250110T100000\nDTEND;TZID=America/New_York:20250110T110000\nDTSTAMP:20250106T120000Z\nUID:test-timezone-est\nTRANSP:OPAQUE\nEND:VEVENT\nEND:VCALENDAR\n",
+      "components": [
+        {
+          "type": "VEVENT",
+          "uid": "test-timezone-est",
+          "summary": "Event in EST",
+          "has_dtstart": true,
+          "has_dtend": true,
+          "has_duration": false,
+          "has_transp": true,
+          "transp_value": "OPAQUE",
+          "has_rrule": false,
+          "has_recurrence_id": false,
+          "properties": {
+            "DTSTART": {
+              "value": "b'20250110T100000'",
+              "params": {
+                "TZID": "America/New_York"
+              },
+              "dt_type": "datetime"
+            },
+            "DTEND": {
+              "value": "b'20250110T110000'",
+              "params": {
+                "TZID": "America/New_York"
+              },
+              "dt_type": "datetime"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "raw_ical": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\nSUMMARY:Floating Time Event\nDTSTART:20250110T140000\nDTEND:20250110T150000\nDTSTAMP:20250106T120000Z\nUID:test-floating-time\nTRANSP:OPAQUE\nEND:VEVENT\nEND:VCALENDAR\n",
+      "components": [
+        {
+          "type": "VEVENT",
+          "uid": "test-floating-time",
+          "summary": "Floating Time Event",
+          "has_dtstart": true,
+          "has_dtend": true,
+          "has_duration": false,
+          "has_transp": true,
+          "transp_value": "OPAQUE",
+          "has_rrule": false,
+          "has_recurrence_id": false,
+          "properties": {
+            "DTSTART": {
+              "value": "b'20250110T140000'",
+              "params": {},
+              "dt_type": "datetime"
+            },
+            "DTEND": {
+              "value": "b'20250110T150000'",
+              "params": {},
+              "dt_type": "datetime"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "raw_ical": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\nSUMMARY:All-Day with DURATION\nDTSTART;VALUE=DATE:20250112\nDURATION:P2D\nDTSTAMP:20250106T120000Z\nUID:test-allday-duration\nTRANSP:OPAQUE\nEND:VEVENT\nEND:VCALENDAR\n",
+      "components": [
+        {
+          "type": "VEVENT",
+          "uid": "test-allday-duration",
+          "summary": "All-Day with DURATION",
+          "has_dtstart": true,
+          "has_dtend": false,
+          "has_duration": true,
+          "has_transp": true,
+          "transp_value": "OPAQUE",
+          "has_rrule": false,
+          "has_recurrence_id": false,
+          "properties": {
+            "DTSTART": {
+              "value": "b'20250112'",
+              "params": {
+                "VALUE": "DATE"
+              },
+              "dt_type": "date"
+            },
+            "DURATION": {
+              "value": "b'P2D'"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

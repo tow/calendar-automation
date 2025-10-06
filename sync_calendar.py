@@ -102,10 +102,17 @@ class CalendarSyncTransaction:
                     
                 elif op[0] == 'update':
                     _, work_uid, family_uid, event_data = op
-                    family_event = self.family_cal.event_by_uid(family_uid)
-                    family_event.data = event_data
-                    family_event.save()
-                    self.completed.append(op)
+                    try:
+                        family_event = self.family_cal.event_by_uid(family_uid)
+                        family_event.data = event_data
+                        family_event.save()
+                        self.completed.append(op)
+                    except:
+                        # If event doesn't exist, create it instead
+                        print(f"  ⚠ Event {family_uid} not found for update, creating instead")
+                        self.family_cal.save_event(event_data)
+                        self.state["event_map"][work_uid] = family_uid
+                        self.completed.append(op)
                     
                 elif op[0] == 'delete':
                     _, work_uid, family_uid = op
@@ -148,29 +155,47 @@ def main():
         )
         
         transaction = CalendarSyncTransaction(work_cal, family_cal, state)
-        current_work_uids = set()
-        
+
         # Process changed/new events
         for event in synced_events:
             try:
+                # Check for deletion marker (event.data is None when event is deleted)
+                if event.data is None:
+                    # Extract UID from URL (e.g., .../event-uid.ics)
+                    # Try to get UID from the event object or parse from URL
+                    work_uid = None
+                    if hasattr(event, '_uid') and event._uid:
+                        work_uid = event._uid
+                    else:
+                        # Parse from URL as fallback
+                        url_str = str(event.url) if hasattr(event, 'url') else str(event)
+                        if '.ics' in url_str:
+                            work_uid = url_str.split('/')[-1].replace('.ics', '')
+
+                    if work_uid and work_uid in state["event_map"]:
+                        family_uid = state["event_map"][work_uid]
+                        transaction.plan_delete(work_uid, family_uid)
+                        print(f"Deleted event {work_uid[:8]}... → Remove from family calendar")
+                    continue
+
+                # Process normal events (created or modified)
                 cal = Calendar.from_ical(event.data)
                 for component in cal.walk('VEVENT'):
                     work_uid = str(component.get('UID'))
-                    current_work_uids.add(work_uid)
-                    
+
                     # Debug: print event details
                     summary = component.get('SUMMARY', 'No title')
                     print(f"Processing: {summary} (UID: {work_uid[:8]}...)")
-                    
+
                     # Check if busy (TRANSP=OPAQUE or absent)
                     transp = component.get('TRANSP', 'OPAQUE')
-                    
+
                     if transp == 'OPAQUE':
                         # Busy event - create or update in family calendar
                         try:
                             dtstart = component['DTSTART']
                             dtend = get_event_end(component)
-                            
+
                             family_event_data = f"""BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Busy Sync//EN
@@ -182,7 +207,7 @@ SUMMARY:Busy
 TRANSP:OPAQUE
 END:VEVENT
 END:VCALENDAR"""
-                            
+
                             if work_uid in state["event_map"]:
                                 # Update existing
                                 family_uid = state["event_map"][work_uid]
@@ -202,18 +227,11 @@ END:VCALENDAR"""
                             family_uid = state["event_map"][work_uid]
                             transaction.plan_delete(work_uid, family_uid)
                             print(f"  → Delete from family calendar")
-                            
+
             except Exception as e:
                 print(f"⚠ Error processing event: {e}")
                 # Continue with other events rather than failing completely
                 continue
-        
-        # Handle deletions
-        for work_uid in list(state["event_map"].keys()):
-            if work_uid not in current_work_uids:
-                family_uid = state["event_map"][work_uid]
-                transaction.plan_delete(work_uid, family_uid)
-                print(f"Deleted event {work_uid[:8]}... → Remove from family calendar")
         
         # Execute all operations atomically
         transaction.execute()

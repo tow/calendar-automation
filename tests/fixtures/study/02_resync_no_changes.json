@@ -1,0 +1,7 @@
+{
+  "test_name": "Re-sync immediately (no changes)",
+  "old_sync_token": "data:,1759734674-822885",
+  "new_sync_token": "data:,1759734674-822885",
+  "event_count": 0,
+  "events": []
+}
